@@ -12,8 +12,10 @@ class Ent
 		@h=o and o.h or 8
 		@flip=o and o.flip or 0
 		@rotate=o and o.rotate or 0
+		@scale=o and o.scale or 1
 		@sprt={
 			id:o and o.sprt and o.sprt.id or 1
+			t:o and o.sprt and o.sprt.t or 0
 			w:o and o.sprt and o.sprt.w or 1
 			h:o and o.sprt and o.sprt.h or 1
 		}
@@ -36,7 +38,10 @@ fget8=(id)->peek(0x14404+id)
 fset8=(id,val)->poke(0x14404+id,val)
 
 draw=(o)->
-	spr o.sprt.id,o.x,o.y,0,1,o.flip,o.rotate,o.sprt.w,o.sprt.h
+	spr o.sprt.id,
+		o.x,o.y,
+		o.sprt.t,o.scale,o.flip,o.rotate,
+		o.sprt.w,o.sprt.h
 
 export TIC=->
 	if btn 0
@@ -81,16 +86,12 @@ export TIC=->
 
 	cls!
 	map!
-	if #bullets>0
-		b=bullets[1]
-		print "bullet id:#{b.sprt.id}",1,1,4
 	draw p
 	draw buddy
 	for b in *bullets
 		draw b
 
 	t+=1
-
 -- <TILES>
 -- 001:023333300233333002cf3cf0023333300eddddd00ffffff00eddddd00fe00fe0
 -- 002:0000000000000000000000000000006600777066077777600777776000600600

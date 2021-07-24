@@ -4,7 +4,7 @@
 -- script: moon
 
 t=0
-class Ent
+class Entity
 	new:(o)=>
 		@x=o and o.x or 96
 		@y=o and o.y or 48
@@ -12,10 +12,10 @@ class Ent
 		@h=o and o.h or 8
 		@flip=o and o.flip or 0
 		@rotate=o and o.rotate or 0
-		@scale=o and o.scale or 1
 		@sprt={
 			id:o and o.sprt and o.sprt.id or 1
 			t:o and o.sprt and o.sprt.t or 0
+			s:o and o.sprt and o.sprt.s or 1
 			w:o and o.sprt and o.sprt.w or 1
 			h:o and o.sprt and o.sprt.h or 1
 		}
@@ -76,7 +76,7 @@ fset8=(id,val)->poke(0x14404+id,val)
 draw=(o)->
 	spr o.sprt.id,
 		o.x,o.y,
-		o.sprt.t,o.scale,o.flip,o.rotate,
+		o.sprt.t,o.sprt.s,o.flip,o.rotate,
 		o.sprt.w,o.sprt.h
 
 export TIC=->
@@ -86,7 +86,7 @@ export TIC=->
 
 	buddy=entities[2]
 	if buddy.sprt.id>0 and btnp 4,15,9
-		table.insert entities,Ent {
+		table.insert entities,Entity {
 			x:buddy.x
 			y:buddy.y-6
 			flip:buddy.flip
@@ -114,7 +114,7 @@ export TIC=->
 -- 018:00000000000000000000000000066600706f6f60076555670076667067770776
 -- 128:0000000000400000000330400432230000323300000330400040000000000000
 -- 130:0000043200004320000032000001100000011000002300000234000023400000
--- 131:c00000c00000c000000000000c0000000000c00000000000000c00000c00000c
+-- 131:c0c00000000000c0c0c000000000000000000000000000c00c000c0c000000c0
 -- 132:0040000044444000044400000404000000000400000444440000444000004040
 -- 133:00c0eed00c0eeed0c0eeeed00000200000002000000020000000200000002000
 -- 134:000000000000cc00000ccbc000ccccbc00cccccc00dccccc00edcccd000eddd0
@@ -123,8 +123,10 @@ export TIC=->
 -- </TILES>
 
 -- <SPRITES>
--- 000:02000000022200002222220022111110214444401444444034cf4cf034444340
+-- 000:02000000022200002222200022111100214444001444444034cf4cf034444340
+-- 001:02000000022200002222200022111100214444001444444034cf4cf034444340
 -- 016:03444400088999000899d900089999000899d900089989000898f900898ff890
+-- 017:03444400088999000899d900089999000899d90008998900098ff89098ffff80
 -- 032:0111111001444440349c49c034cc3cc00344444047664674077777700f800f80
 -- </SPRITES>
 

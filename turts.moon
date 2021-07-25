@@ -23,7 +23,7 @@ class Entity
 		@y=o and o.y or 10
 		@w=o and o.w or 8
 		@h=o and o.h or 8
-		@flip=o and o.flip or 0
+		@aim=o and o.aim or 0
 		@rotate=o and o.rotate or 0
 		@scale=o and o.scale or 1
 		@state=o and o.state or "idle"
@@ -74,7 +74,7 @@ draw=(o,c,t)->
 				if state.current>#state.frames
 					state.current=1
 	spr id,o.x+c.x,o.y+c.y,
-		o.sprt.t,o.scale,o.flip,o.rotate,
+		o.sprt.t,o.scale,o.aim==2 and 1 or 0,o.rotate,
 		o.sprt.w,o.sprt.h
 
 -- Get map location from player coordinates
@@ -85,17 +85,19 @@ export TIC=->
 	p.state="idle"
 	if btn 0
 		p.y-=1
+		p.aim=0
 		p.state="walking"
 	if btn 1
 		p.y+=1
+		p.aim=1
 		p.state="walking"
 	if btn 2
 		p.x-=1
-		p.flip=1
+		p.aim=2
 		p.state="walking"
 	if btn 3
 		p.x+=1
-		p.flip=0
+		p.aim=3
 		p.state="walking"
 
 	cam.x=math.min 120,lerp(cam.x,120-p.x,0.05)
@@ -109,24 +111,27 @@ export TIC=->
 	if 0 < fget8 sprt
 		item.sprt.id=sprt
 
-	buddy.flip=p.flip
-	buddy.y=8+p.y+math.sin t/9
-	if p.flip==1
-		buddy.x=p.x+10
+	buddy.aim=p.aim
+	if p.aim==0
+		buddy.y=lerp(p.y,buddy.x,.03)+10+math.sin t/9
 	else
-		buddy.x=p.x-10
+		buddy.y=lerp(p.y,buddy.x,.03)+6+math.sin t/9
+	if p.aim==2
+		buddy.x=lerp(p.x,buddy.x,.9)+1
+	else
+		buddy.x=lerp(p.x,buddy.x,.9)-1
 
 	if item.sprt.id>0 and btnp 4,15,9
 		table.insert bullets,Entity {
 			x:buddy.x
 			y:buddy.y-6
-			flip:buddy.flip
+			aim:buddy.aim
 			sprt:
 				id:fget8 item.sprt.id
 		}
 
 	for i,b in pairs bullets
-		if b.flip==1
+		if b.aim==2
 			b.x-=2
 		else
 			b.x+=2

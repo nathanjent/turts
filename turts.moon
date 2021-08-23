@@ -5,6 +5,7 @@
 
 FLGREG=0x14404
 
+uid=0
 lerp=(a,b,t)->(1-t)*a + t*b
 
 -- flag as byte
@@ -19,119 +20,196 @@ fset4=(id,top,val)->
 
 class Entity
 	new:(o)=>
-		@x=o and o.x or 10
-		@y=o and o.y or 10
-		@w=o and o.w or 8
-		@h=o and o.h or 8
-		@aim=o and o.aim or 0
-		@rotate=o and o.rotate or 0
+		-- sprite
+		@sprite=o and o.sprite or 0
+		@colorkey=o and o.colorkey or -1
 		@scale=o and o.scale or 1
-		@state=o and o.state or "idle"
-		@sprt=
-			id:o and o.sprt and o.sprt.id or 1
-			t:o and o.sprt and o.sprt.t or 0
-			w:o and o.sprt and o.sprt.w or 1
-			h:o and o.sprt and o.sprt.h or 1
-			statedata:o and o.sprt and o.sprt.statedata
+		@flip=o and o.flip or 0
+		@rotate=o and o.rotate or 0
+		-- sprite offset from AABB
+		@ox=o and o.ox or 0
+		@oy=o and o.oy or 0
+		-- states
+		@mode=o and o.mode or "idle"
+		@modes=o and o.modes or { idle:{ frames:{0} }}
+		@frame_tic=0
+		@cur_frame=1
+		-- collision
+		@cx=o and o.cx or 10
+		@cy=o and o.cy or 10
+		@cw=o and o.cw or 10
+		@ch=o and o.ch or 10
+		-- physics
+		@vx=0
+		@vy=0
+		@vxmax=o and o.vxmax or 1
+		@vymax=o and o.vymax or 1
+		@ax=o and o.ax or 1
+		@ay=o and o.ay or 1
 
 t=0
 cam=
 	x:120
 	y:64
-p=Entity {
-	w:8
-	h:16
-	sprt:
-		id:256
-		w:1
-		h:2
-		statedata:
-			walking:
-				rate:6
-				frames:{256,257}
+entities=
+	player:Entity {
+		cx:120
+		cy:64
+		w:8
+		h:16
+		sprite:256
+		modes:
 			idle:
 				frames:{256}
-}
-buddy=Entity {
-	sprt:
-		id:288
-}
-item=Entity {
-	sprt:
-		id:0
-}
+				h:2
+				transparent:0
+			walking:
+				frames:{256,257}
+				fholds:{5,5}
+				h:2
+				transparent:0
+	}
+	buddy:Entity {
+		sprite:288
+	}
+	item:Entity {
+		sprite:0
+	}
 bullets={}
-
--- draw object adjusted to camera view
-draw=(o,c,t)->
-	id=o.sprt.id
-	if o.state and o.sprt.statedata
-		state=o.sprt.statedata[o.state]
-		if state.frames and state.rate
-			id=state.frames[state.current or 1]
-			if (t%60)%state.rate==0
-				state.current=state.current and state.current+1 or 1
-				if state.current>#state.frames
-					state.current=1
-	spr id,o.x+c.x,o.y+c.y,
-		o.sprt.t,o.scale,o.aim==2 and 1 or 0,o.rotate,
-		o.sprt.w,o.sprt.h
 
 -- Get map location from player coordinates
 cammapget=(c,x,y)->
 	(c.x%8+x)//8+15,(c.y%8+y)//8+8
 
-export TIC=->
-	p.state="idle"
-	if btn 0
-		p.y-=1
-		p.aim=0
-		p.state="walking"
-	if btn 1
-		p.y+=1
-		p.aim=1
-		p.state="walking"
-	if btn 2
-		p.x-=1
-		p.aim=2
-		p.state="walking"
-	if btn 3
-		p.x+=1
-		p.aim=3
-		p.state="walking"
+-- Returns the axis aligned bounding box for the object with applied velocity changes
+aabb=(o)->
+	o.cx+o.vx,o.cy+o.vy,o.cx+o.vx+o.cw-1,o.cy+o.vy+o.ch-1
 
-	cam.x=math.min 120,lerp(cam.x,120-p.x,0.05)
-	cam.y=math.min 64,lerp(cam.y,64-p.y,0.05)
-	ccx=cam.x/8+(cam.x%8==0 and 1 or 0)
-	ccy=cam.y/8+(cam.y%8==0 and 1 or 0)
+solid=(cam,x,y)->
+	fget mget(cammapget(cam,x,y)),0
 
+collision=(cam,o)->
+	x1,y1,x2,y2=aabb o
+	for x=x1,x2
+		for y=y1,y2
+			if solid cam,x,y
+				return true
+
+updateSprite=(o)->
+	o.x=o.cx+o.ox
+	o.y=o.cy+o.oy
+	mode_data=o.modes[o.mode]
+	if mode_data
+		o.colorkey=mode_data.transparent or -1
+		o.sw=mode_data.w or 1
+		o.sh=mode_data.h or 1
+		hold=mode_data[o.cur_frame]
+		if hold
+			if o.frame_tic>hold
+				o.cur_frame+=1
+				o.frame_tic=0
+			if o.cur_frame>#mode_data.frames
+				o.cur_frame=1
+			o.sprite=mode_data.frames[o.cur_frame]
+
+updateMovement=(cam,o,inputs)->
+	if o.vx>-o.vxmax and inputs.left
+		o.vx-=o.ax
+		o.flip=1
+		o.mode="walking"
+	else if o.vx<o.vxmax and inputs.right
+		o.vx+=o.ax
+		o.flip=0
+		o.mode="walking"
+	else
+		-- reduce velocity if no new inputs
+		if o.vx < -.5
+			o.vx+=o.ax
+		else if o.vx > .5
+			o.vx-=o.ax
+		else
+			-- zero out to avoid drift
+			o.vx=0
+			if o.mode="walking"
+				o.mode="idle"
+	if collision cam,o
+		o.vx = 0
+		if o.mode="walking"
+			o.mode="idle"
+
+	-- Handle axis separately
+	if o.vy>-o.vymax and inputs.up
+		o.vy-=o.ay
+		o.mode="walking"
+	else if o.vy<o.vymax and inputs.down
+		o.vy+=o.ay
+		o.mode="walking"
+	else
+		if o.vy < -.5
+			o.vy+=o.ay
+		else if o.vy > .5
+			o.vy-=o.ay
+		else
+			o.vy=0
+			if o.mode="walking"
+				o.mode="idle"
+
+	if collision cam,o
+		o.vy = 0
+		if o.mode="walking"
+			o.mode="idle"
+
+	o.cx+=o.vx
+	o.cy+=o.vy
+
+updatePlayer=(cam,p,entities)->
+	inputs=
+		up: btn 0
+		down: btn 1
+		left: btn 2
+		right: btn 3
+		a: btn 4
+		b: btn 5
+		x: btn 6
+		y: btn 7
+	updateMovement cam,p,inputs
+
+updateBuddy=(cam,b,entities)->
+	p=entities.player
+	inputs=
+		up: p.cy+p.ch+3>b.cy
+		down: p.cy-3<b.cy+b.ch
+		left: p.cx+p.cw+3>b.cx
+		right: p.cx-3<b.cx+b.cw
+	updateMovement cam,b,inputs
+
+updateCamera=(cam,p)->
+	cam.x=math.min 120,lerp(cam.x,120-p.cx,0.05)
+	cam.y=math.min 64,lerp(cam.y,64-p.cy,0.05)
+
+updateItem=(cam,entities)->
+	p=entities.player
+	buddy=entities.buddy
+	item=entities.item
 	-- Get item from map location if flag is set
-	mx,my = cammapget cam,p.x+p.w/2,p.y+p.h*3/4
-	sprt=mget mx,my
-	if 0 < fget8 sprt
-		item.sprt.id=sprt
+	mx,my = cammapget cam,p.cx+p.cw/2,p.cy+p.ch*3/4
+	msprite=mget mx,my
+	if 0 < fget8 msprite
+		item.sprite=msprite
 
-	buddy.aim=p.aim
-	if p.aim==0
-		buddy.y=lerp(p.y,buddy.x,.03)+10+math.sin t/9
-	else
-		buddy.y=lerp(p.y,buddy.x,.03)+6+math.sin t/9
-	if p.aim==2
-		buddy.x=lerp(p.x,buddy.x,.9)+1
-	else
-		buddy.x=lerp(p.x,buddy.x,.9)-1
-
-	if item.sprt.id>0 and btnp 4,15,9
-		table.insert bullets,Entity {
-			x:buddy.x
-			y:buddy.y-6
-			aim:buddy.aim
-			sprt:
-				id:fget8 item.sprt.id
+	if item.sprite>0 and btnp 4,15,9
+		uid+=1
+		bullets["bullet#{uid}"]=Entity {
+			x:buddy.cx
+			y:buddy.cy-6
+			flip:buddy.flip
+			sprite: fget8 item.sprite
 		}
 
+updateBullets=(cam,entities)->
+	bullets={k,v for k,v in pairs entities when string.match(k,"bullet%a")}
 	for i,b in pairs bullets
-		if b.aim==2
+		if b.flip==2
 			b.x-=2
 		else
 			b.x+=2
@@ -139,19 +217,33 @@ export TIC=->
 		if b.x+cam.x>240 or b.x+cam.x<0
 			table.remove bullets,i
 
+-- draw object adjusted to camera view
+draw=(o,c,t)->
+	if o.sprite
+		spr o.sprite,o.x+c.x,o.y+c.y,
+			o.colorkey or -1,o.scale or 1,
+			o.flip or 0,o.rotate or 0,
+			o.sw or 1,o.sh or 1
+
+export TIC=->
+	for k,e in pairs entities
+		updateSprite e
+		if k=="player"
+			updatePlayer cam,e,entities
+			updateCamera cam,e
+			updateItem cam,entities
+		else if k=="buddy"
+			updateBuddy cam,e,entities
+
 	cls!
+	ccx=cam.x/8+(cam.x%8==0 and 1 or 0)
+	ccy=cam.y/8+(cam.y%8==0 and 1 or 0)
 	map 15-ccx,8-ccy,31,18,(cam.x%8)-8,(cam.y%8)-8,0
-	draw p,cam,t
-	draw buddy,cam,t
+	for _,e in pairs entities
+		draw e,cam,t
 	for b in *bullets
 		draw b,cam,t
-	
-	print "sprite:#{sprt}",1,1,4
-	print "item:#{item.sprt.id}",1,8,4
-	print "player x:#{p.x} y:#{p.y}",1,16,4
-	print "buddy x:#{buddy.x} y:#{buddy.y}",1,24,4
-	print "camera x:#{cam.x} y:#{cam.y}",1,32,4
-	print "map x:#{mx} y:#{my}",1,40,4
+
 	t+=1
 
 -- <TILES>
